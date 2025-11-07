@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite, Vanilla JS + Mapbox GL JS with Search</title>
+    <link rel="icon" type="image/svg+xml" href="https://static-assets.mapbox.com/branding/favicon/v2/favicon-32x32.png?v=gAd4JjrGWl" />
+
+    <!-- Mapbox GL JS -->
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.js"></script>
+
+    <!-- Mapbox Search JS Web -->
+     <script id="search-js" defer="" src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
+
+    <style>
+      body {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      }
+
+      #map-container {
+        height: 100%;
+        width: 100%;
+      }
+
+      #info-panel {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        max-width: 320px;
+        z-index: 1;
+      }
+
+      #info-panel h1 {
+        margin: 0 0 12px 0;
+        font-size: 24px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      #info-panel p {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #666;
+      }
+
+      #info-panel p:last-of-type {
+        margin-bottom: 0;
+      }
+
+      #info-panel a {
+        color: #a65555;
+        text-decoration: none;
+        border-bottom: 1px solid #a65555;
+      }
+
+      #info-panel a:hover {
+        color: #8a4444;
+        border-bottom-color: #8a4444;
+      }
+
+      #info-panel .note {
+        font-size: 12px;
+        color: #999;
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid #e0e0e0;
+      }
+
+      #info-panel .note a {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- Info Panel -->
+    <div id="info-panel">
+      <h1>🚂 OSM Railways</h1>
+      <p>This map highlights all rail features in the <a href="https://tiles.openstreetmap.us/vector/openmaptiles/" target="_blank">openmaptiles vector tileset</a> published by the <a href="https://tiles.openstreetmap.us/" target="_blank">OpenStreetMap US tile service</a>.</p>
+      <p>Explore the map, search for any location and see where the trains are!</p>
+      <p>You may find rails appearing in unexpected places, like <a id="link-amusement">amusement parks</a> or <a id="link-docks">docks</a>.</p>
+      <div class="note">Created by Chris Whong for the 2026 30 Day Map Challenge</div>
+    </div>
+
+    <!-- Map -->
+    <div id="map-container"></div>
+
+    <script type="module">
+      // Mapbox access token
+      const accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+     
+      let map;
+      let center =  [-71.05953, 42.36290]; // Boston, MA
+
+      /**
+       * Initialize the map
+       */
+      function initMap() {
+        map = new mapboxgl.Map({
+          container: 'map-container',
+          accessToken: accessToken,
+          center,
+          zoom: 13,
+          config: {
+            basemap: {
+              theme: 'monochrome'
+            }
+          },
+          hash: true,
+          minZoom: 8
+        });
+
+        map.on('load', () => {
+          // Add OpenStreetMap vector tileset source
+          map.addSource('osm-tiles', {
+            type: 'vector',
+            url: 'https://tiles.openstreetmap.us/vector/openmaptiles.json'
+          });
+
+          // Add rail layer
+          map.addLayer({
+            id: 'rail-layer',
+            type: 'line',
+            source: 'osm-tiles',
+            'source-layer': 'transportation',
+            paint: {
+              'line-color': '#a65555',
+              'line-width': 2
+            },
+            filter: ['==', ['get', 'class'], 'rail']
+          });
+
+          // Add rail cross-ties layer (dashed pattern)
+          map.addLayer({
+            id: 'rail-ties-layer',
+            type: 'line',
+            source: 'osm-tiles',
+            'source-layer': 'transportation',
+            paint: {
+              'line-color': '#a65555',
+              'line-width': 6,
+              'line-dasharray': [0.1, 1]
+            },
+            filter: ['==', ['get', 'class'], 'rail']
+          });
+
+          // Create tooltip
+          const tooltip = new mapboxgl.Popup({
+            closeButton: false,
+            closeOnClick: false
+          });
+
+          const searchBox = new MapboxSearchBox();
+            searchBox.accessToken = accessToken;
+            searchBox.options = {
+                proximity: center
+            };
+            searchBox.marker = true;
+            searchBox.mapboxgl = mapboxgl;
+            searchBox.componentOptions = { allowReverse: true, flipCoordinates: true };
+            map.addControl(searchBox);
+        });
+
+        // Add click handlers for location links
+        document.getElementById('link-amusement').addEventListener('click', (e) => {
+          e.preventDefault();
+          // Fly to Adventure World in Maryland, an amusement park with railways
+
+          map.flyTo({
+            center: [-76.77322, 38.909347],
+            zoom: 16.3
+          });
+        });
+
+        document.getElementById('link-docks').addEventListener('click', (e) => {
+          e.preventDefault();
+          // Fly to Port of Boston docks
+       
+          map.flyTo({
+            center: [-71.02479, 42.34333],
+            zoom: 15
+          });
+        });
+      }
+
+      initMap();
+    </script>
+  </body>
+</html>
+
